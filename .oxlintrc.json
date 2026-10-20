@@ -1,10 +1,52 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "rules": {
-    "typescript/no-explicit-any": "off",
+    "typescript/no-explicit-any": "warn",
     "typescript/no-floating-promises": "error"
   },
   "env": {
     "node": true
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/modules/*/domain/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@nestjs/*", "@prisma/*"],
+                "message": "O domínio não pode depender de framework ou ORM."
+              },
+              {
+                "regex": "(^|/)(application|infrastructure|generated)/",
+                "message": "Dependências apontam para dentro: o domínio não importa camadas externas."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/modules/*/application/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@nestjs/*", "@prisma/*"],
+                "message": "Casos de uso dependem de ports, não de framework ou ORM."
+              },
+              {
+                "regex": "(^|/)(infrastructure|generated)/",
+                "message": "Casos de uso dependem de ports, não de adapters."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }
