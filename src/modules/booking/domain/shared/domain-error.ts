@@ -6,3 +6,5 @@ export abstract class DomainError extends Error {
 }
 
 export class InvalidMoneyError extends DomainError {}
+export class InvalidTimeSlotError extends DomainError {}
+
