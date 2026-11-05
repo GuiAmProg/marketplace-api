@@ -29,4 +29,15 @@ export class Money {
       this.currency === other.currency
     );
   }
+   percentage(percent: number): Money {
+    if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+      throw new InvalidMoneyError(
+        'A porcentagem deve ser um inteiro entre 0 e 100',
+      );
+    }
+    return new Money(
+      Math.floor((this.amountInCents * percent) / 100),
+      this.currency,
+    );
+  }
 }

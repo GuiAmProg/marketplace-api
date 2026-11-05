@@ -54,4 +54,28 @@ describe('Money', () => {
       expect(Money.of(100, 'BRL').equals(Money.of(100, 'USD'))).toBe(false);
     });
   });
+
+    describe('percentage', () => {
+    it.each([
+      [8000, 100, 8000],
+      [8000, 50, 4000],
+      [8000, 0, 0],
+      [101, 50, 50], // 50,5 centavos é truncado para 50
+    ])('%s centavos a %s%% resulta em %s', (amount, percent, expected) => {
+      expect(Money.of(amount).percentage(percent).amountInCents).toBe(expected);
+    });
+
+    it('mantém a moeda original', () => {
+      expect(Money.of(1000, 'USD').percentage(50).currency).toBe('USD');
+    });
+
+    it.each([[-1], [101], [10.5], [NaN]])(
+      'rejeita porcentagem inválida (%s)',
+      (percent) => {
+        expect(() => Money.of(1000).percentage(percent)).toThrow(
+          InvalidMoneyError,
+        );
+      },
+    );
+  });
 });
