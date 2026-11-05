@@ -1,3 +1,4 @@
+import { CancellationPolicy } from '../../../domain/cancellation-policy';
 import { Money } from '../../../domain/shared/money';
 
 export interface ServiceView {
@@ -5,6 +6,7 @@ export interface ServiceView {
   providerId: string;
   durationMinutes: number;
   price: Money;
+  cancellationPolicy: CancellationPolicy;
   active: boolean;
 }
 

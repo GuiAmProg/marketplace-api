@@ -6,3 +6,4 @@ export class ProviderNotFoundError extends DomainError {}
 export class ProviderUnavailableError extends DomainError {}
 export class SelfBookingNotAllowedError extends DomainError {}
 export class SlotAlreadyTakenError extends DomainError {}
+export class BookingNotFoundError extends DomainError {}

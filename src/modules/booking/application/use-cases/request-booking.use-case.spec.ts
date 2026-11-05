@@ -25,6 +25,7 @@ import {
 import { ProviderView } from '../ports/out/provider.repository.port';
 import { ServiceView } from '../ports/out/service.repository.port';
 import { RequestBookingUseCase } from './request-booking.use-case';
+import {CancellationPolicy} from '../../domain/cancellation-policy';
 
 const NOW = new Date('2026-11-02T12:00:00Z');
 const START = new Date('2026-11-03T14:00:00Z');
@@ -35,6 +36,7 @@ const SERVICE: ServiceView = {
   durationMinutes: 60,
   price: Money.of(8000),
   active: true,
+  cancellationPolicy: CancellationPolicy.standard(),
 };
 
 const PROVIDER: ProviderView = {
@@ -111,6 +113,16 @@ describe('RequestBookingUseCase', () => {
       });
     });
   });
+
+      it('congela a política de cancelamento do serviço na reserva', async () => {
+      const { useCase, bookings } = makeSut();
+
+      await useCase.execute(validInput);
+
+      expect(bookings.items[0].cancellationPolicy.tiers).toEqual(
+        CancellationPolicy.standard().tiers,
+      );
+    });
 
   describe('quando uma regra de negócio falha', () => {
     it.each([
@@ -222,6 +234,7 @@ describe('RequestBookingUseCase', () => {
           status: 'CANCELLED',
           createdAt: new Date('2026-11-01T10:00:00Z'),
           expiresAt: new Date('2026-11-01T10:15:00Z'),
+          cancellationPolicy: CancellationPolicy.standard(),
         }),
       );
 

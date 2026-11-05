@@ -78,7 +78,8 @@ export class RequestBookingUseCase {
         providerId: provider.id,
         serviceId: service.id,
         timeSlot: slot,
-        price: service.price,
+         price: service.price,
+        cancellationPolicy: service.cancellationPolicy,
       },
       now,
     );
