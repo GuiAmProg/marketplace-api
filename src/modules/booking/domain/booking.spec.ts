@@ -27,8 +27,6 @@ const validData = (
   providerId: 'provider-1',
   serviceId: 'service-1',
   timeSlot: TimeSlot.fromDuration(at(3, 14), 60),
-  price: Money.of(8000),
-  ...overrides,
    price: Money.of(8000),
   cancellationPolicy: CancellationPolicy.standard(),
   ...overrides,
