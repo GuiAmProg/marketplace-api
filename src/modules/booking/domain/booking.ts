@@ -1,6 +1,14 @@
+import { CancellationPolicy } from './cancellation-policy';
+import { BookingCancelledEvent } from './events/booking-cancelled.event';
+import { BookingConfirmedEvent } from './events/booking-confirmed.event';
 import { BookingRequestedEvent } from './events/booking-requested.event';
 import { AggregateRoot } from './shared/aggregate-root';
-import { BookingInThePastError } from './shared/domain-error';
+import { CancelledBy } from './shared/cancelled-by';
+import {
+  BookingAlreadyStartedError,
+  BookingInThePastError,
+  InvalidBookingStateError,
+} from './shared/domain-error';
 import { Money } from './shared/money';
 import { TimeSlot } from './time-slot';
 
@@ -25,16 +33,26 @@ export interface BookingProps {
   serviceId: string;
   timeSlot: TimeSlot;
   price: Money;
+  /** Política vigente quando a reserva foi feita (snapshot). */
+  cancellationPolicy: CancellationPolicy;
   status: BookingStatus;
   expiresAt: Date;
   createdAt: Date;
+  cancelledAt?: Date;
+  cancelledBy?: CancelledBy;
+  refundAmount?: Money;
 }
 
 // O que é preciso informar para solicitar uma reserva nova.
-// Status, prazo e data de criação são decididos pelo próprio Booking.
+// Status, prazo, data de criação e dados de cancelamento são decididos pelo Booking.
 export type RequestBookingData = Omit<
   BookingProps,
-  'status' | 'expiresAt' | 'createdAt'
+  | 'status'
+  | 'expiresAt'
+  | 'createdAt'
+  | 'cancelledAt'
+  | 'cancelledBy'
+  | 'refundAmount'
 >;
 
 export class Booking extends AggregateRoot {
@@ -48,6 +66,7 @@ export class Booking extends AggregateRoot {
       ...props,
       createdAt: new Date(props.createdAt),
       expiresAt: new Date(props.expiresAt),
+      cancelledAt: props.cancelledAt ? new Date(props.cancelledAt) : undefined,
     };
   }
 
@@ -85,6 +104,77 @@ export class Booking extends AggregateRoot {
     return new Booking(props);
   }
 
+  /** Transição PENDING_PAYMENT -> CONFIRMED (pagamento aprovado). */
+  confirm(now: Date): void {
+    if (this.props.status !== 'PENDING_PAYMENT') {
+      throw new InvalidBookingStateError(
+        `Só é possível confirmar uma reserva aguardando pagamento (status atual: ${this.props.status})`,
+      );
+    }
+
+    this.props.status = 'CONFIRMED';
+    this.record(
+      new BookingConfirmedEvent(
+        this.props.id,
+        this.props.customerId,
+        this.props.providerId,
+        now,
+      ),
+    );
+  }
+
+  /**
+   * Cancela a reserva e devolve o valor a ser reembolsado.
+   * - Reserva não paga: nada a reembolsar.
+   * - Cancelamento pelo prestador: reembolso integral.
+   * - Cancelamento pelo cliente: conforme a política gravada na reserva.
+   */
+  cancel(by: CancelledBy, now: Date): Money {
+    if (!this.isActive) {
+      throw new InvalidBookingStateError(
+        `Não é possível cancelar uma reserva com status ${this.props.status}`,
+      );
+    }
+    if (this.props.timeSlot.hasStartedBy(now)) {
+      throw new BookingAlreadyStartedError(
+        'Não é possível cancelar uma reserva cujo horário já começou',
+      );
+    }
+
+    const refund = this.calculateRefund(by, now);
+
+    this.props.status = 'CANCELLED';
+    this.props.cancelledAt = new Date(now);
+    this.props.cancelledBy = by;
+    this.props.refundAmount = refund;
+
+    this.record(
+      new BookingCancelledEvent(
+        this.props.id,
+        this.props.customerId,
+        this.props.providerId,
+        by,
+        refund.amountInCents,
+        now,
+      ),
+    );
+
+    return refund;
+  }
+
+  private calculateRefund(by: CancelledBy, now: Date): Money {
+    const zero = Money.of(0, this.props.price.currency);
+
+    if (this.props.status !== 'CONFIRMED') return zero; // nada foi pago
+    if (by === 'PROVIDER') return this.props.price; // culpa do prestador
+
+    const percent = this.props.cancellationPolicy.refundPercentFor(
+      this.props.timeSlot.start,
+      now,
+    );
+    return this.props.price.percentage(percent);
+  }
+
   get id(): string {
     return this.props.id;
   }
@@ -109,6 +199,10 @@ export class Booking extends AggregateRoot {
     return this.props.price;
   }
 
+  get cancellationPolicy(): CancellationPolicy {
+    return this.props.cancellationPolicy;
+  }
+
   get status(): BookingStatus {
     return this.props.status;
   }
@@ -119,6 +213,18 @@ export class Booking extends AggregateRoot {
 
   get expiresAt(): Date {
     return new Date(this.props.expiresAt);
+  }
+
+  get cancelledAt(): Date | null {
+    return this.props.cancelledAt ? new Date(this.props.cancelledAt) : null;
+  }
+
+  get cancelledBy(): CancelledBy | null {
+    return this.props.cancelledBy ?? null;
+  }
+
+  get refundAmount(): Money | null {
+    return this.props.refundAmount ?? null;
   }
 
   /** Verdadeiro enquanto a reserva ocupa o horário do prestador. */
